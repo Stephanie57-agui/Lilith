@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lilith</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Michroma&family=Sora:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="hud">
+    <span><i class="dot"></i>LILITH // CHIEF OF STAFF</span>
+    <span class="chips" id="conn"></span>
+    <b id="clock">--:--</b>
+  </header>
+
+  <div class="grid">
+    <aside class="panel" aria-label="Your team">
+      <h2>YOUR TEAM</h2>
+      <div id="team" class="team"></div>
+      <div id="out" class="out"></div>
+    </aside>
+
+    <main class="center">
+      <div class="stage booting" id="stage">
+        <img src="lilith.jpg" alt="Lilith, a cosmic neon hologram woman" id="art">
+        <canvas id="fx" width="941" height="1672" aria-hidden="true"></canvas>
+        <canvas id="boot" width="470" height="836" aria-hidden="true"></canvas>
+        <div class="hudtxt" id="hudtxt">ASSEMBLING... 0%</div>
+      </div>
+      <div class="caption" id="caption"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="captext">Tap below and just talk to Lilith.</span></div>
+      <button class="go" id="go" type="button">WAKE LILITH</button>
+      <p class="status" id="status">Offline</p>
+    </main>
+
+    <aside class="side">
+      <section class="panel" aria-label="Approvals">
+        <h2>NEEDS YOUR OK</h2>
+        <div id="asks"><p class="empty">Nothing waiting. Lilith asks here before anything that spends money, posts, or changes an account.</p></div>
+      </section>
+      <section class="panel" aria-label="Apps">
+        <h2>APPS</h2>
+        <div id="apps" class="apps"></div>
+      </section>
+      <section class="panel" aria-label="Activity">
+        <h2>ACTIVITY</h2>
+        <div id="log" class="log"><p class="empty">Your conversation shows up here.</p></div>
+      </section>
+    </aside>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
