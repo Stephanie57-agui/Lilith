@@ -112,6 +112,8 @@ const cv = $("fx"), cx = cv.getContext("2d"), W = cv.width, H = cv.height, C = W
 const sparks = Array.from({ length: 110 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 0.3 + Math.random() * 1.1, r: 0.8 + Math.random() * 2.6, p: Math.random() * 6 }));
 const bars = [...document.querySelectorAll(".bars i")];
 let rot = 0, last = 0, amp = 0;
+// gaze: where Steph's face is (-1..1), smoothed; present = face seen recently
+const gaze = { x: 0, y: 0, tx: 0, ty: 0, near: 0, present: false, lastSeen: 0, on: false };
 
 function frame(t) {
   const dt = Math.min(50, t - last) / 1000; last = t;
@@ -135,8 +137,13 @@ function frame(t) {
   const kg = cx.createRadialGradient(C, H * 0.571, 0, C, H * 0.571, W * 0.05);
   kg.addColorStop(0, `rgba(240,180,255,${0.3 + amp * 0.6})`); kg.addColorStop(1, "rgba(160,80,255,0)");
   cx.fillStyle = kg; cx.beginPath(); cx.arc(C, H * 0.571, W * 0.05, 0, 6.283); cx.fill();
-  for (const p of sparks) { p.y -= p.v * (reduce ? 0.3 : 1) * (1 + amp * 3); if (p.y < 0) { p.y = H; p.x = Math.random() * W; } const a = 0.2 + 0.4 * Math.abs(Math.sin(t / 500 + p.p)); cx.fillStyle = `rgba(${200 + Math.round(40 * Math.sin(p.p))},170,255,${a})`; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.283); cx.fill(); }
+  for (const p of sparks) { if (gaze.on && gaze.present) p.x += gaze.x * 0.6; p.y -= p.v * (reduce ? 0.3 : 1) * (1 + amp * 3); if (p.y < 0) { p.y = H; p.x = Math.random() * W; } const a = 0.2 + 0.4 * Math.abs(Math.sin(t / 500 + p.p)); cx.fillStyle = `rgba(${200 + Math.round(40 * Math.sin(p.p))},170,255,${a})`; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.283); cx.fill(); }
   art.style.filter = `brightness(${(1 + amp * 0.22).toFixed(3)}) saturate(${(1 + amp * 0.3).toFixed(3)})`;
+  if (gaze.on) {
+    gaze.x += (gaze.tx - gaze.x) * 0.08; gaze.y += (gaze.ty - gaze.y) * 0.08;
+    const lean = mode === "listening" && inVol > 0.05 ? 1.035 : 1;
+    stage.style.transform = `perspective(1100px) rotateY(${(gaze.x * 9).toFixed(2)}deg) rotateX(${(-gaze.y * 5).toFixed(2)}deg) translateX(${(gaze.x * 10).toFixed(1)}px) scale(${(lean + gaze.near * 0.03).toFixed(3)})`;
+  }
   bars.forEach((b, i) => { b.style.height = `${5 + Math.abs(Math.sin(t / 90 + i)) * 15 * Math.max(amp, mode === "listening" ? inVol : 0)}px`; });
   requestAnimationFrame(frame);
 }
@@ -179,3 +186,62 @@ async function startBoot() {
 startBoot();
 let wasHidden = false;
 document.addEventListener("visibilitychange", () => { if (document.hidden) wasHidden = true; else if (wasHidden) { wasHidden = false; startBoot(); } });
+
+/* ---------- webcam: Lilith follows Steph's face (video stays on this device) ---------- */
+const MP = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+let detector = null, camStream = null;
+const cam = $("cam"), eyeBtn = $("eye"), seen = $("seen");
+async function startEyes() {
+  try {
+    eyeBtn.textContent = "WAKING HER EYES...";
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" } });
+    cam.srcObject = camStream; await cam.play();
+    if (!detector) {
+      const { FaceDetector, FilesetResolver } = await import(MP + "/vision_bundle.mjs");
+      const files = await FilesetResolver.forVisionTasks(MP + "/wasm");
+      detector = await FaceDetector.createFromOptions(files, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite" },
+        runningMode: "VIDEO",
+      });
+    }
+    gaze.on = true; eyeBtn.textContent = "SHE SEES YOU"; eyeBtn.classList.add("on"); eyeBtn.setAttribute("aria-pressed", "true");
+    try { localStorage.setItem("lilith_eyes", "1"); } catch (e) {}
+    watch();
+  } catch (e) {
+    console.error(e); stopEyes();
+    $("captext").textContent = e && e.name === "NotAllowedError" ? "Lilith needs camera access to see you. Allow it in your browser and tap again." : "Lilith's eyes couldn't start on this device.";
+  }
+}
+function stopEyes() {
+  gaze.on = false; if (camStream) camStream.getTracks().forEach((t) => t.stop()); camStream = null;
+  eyeBtn.textContent = "LET HER SEE YOU"; eyeBtn.classList.remove("on"); eyeBtn.setAttribute("aria-pressed", "false");
+  stage.style.transform = ""; stage.classList.remove("away"); seen.hidden = true;
+  try { localStorage.removeItem("lilith_eyes"); } catch (e) {}
+}
+let lastVid = -1;
+function watch() {
+  if (!gaze.on) return;
+  const now = performance.now();
+  if (cam.readyState >= 2 && cam.currentTime !== lastVid) {
+    lastVid = cam.currentTime;
+    const r = detector.detectForVideo(cam, now);
+    const f = r && r.detections && r.detections[0];
+    if (f) {
+      const b = f.boundingBox, w = cam.videoWidth, h = cam.videoHeight;
+      gaze.tx = -(((b.originX + b.width / 2) / w) * 2 - 1); // mirrored so she follows you
+      gaze.ty = ((b.originY + b.height / 2) / h) * 2 - 1;
+      gaze.near = Math.min(1, Math.max(0, b.width / w - 0.15) * 3);
+      if (!gaze.present && now - gaze.lastSeen > 8000 && conv && conv.sendContextualUpdate) {
+        try { conv.sendContextualUpdate("Steph just came back to the screen."); } catch (e) {}
+      }
+      gaze.present = true; gaze.lastSeen = now;
+    } else if (now - gaze.lastSeen > 4000) {
+      gaze.present = false; gaze.tx *= 0.9; gaze.ty *= 0.9;
+    }
+    stage.classList.toggle("away", !gaze.present);
+    seen.hidden = !gaze.present;
+  }
+  requestAnimationFrame(watch);
+}
+eyeBtn.onclick = () => (gaze.on ? stopEyes() : startEyes());
+try { if (localStorage.getItem("lilith_eyes") === "1") startEyes(); } catch (e) {}

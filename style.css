@@ -60,3 +60,11 @@ body{background:radial-gradient(ellipse 90% 60% at 50% 22%,#1c0e5c 0%,#0b0636 45
 .log b{font-family:var(--display);font-size:9px;letter-spacing:.16em;font-weight:400;color:var(--rose);margin-right:6px}
 button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.stage img{transition:none}}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.eye{font-family:var(--display);font-size:11px;letter-spacing:.2em;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:999px;padding:14px 22px;cursor:pointer}
+.eye.on{color:#8fd8ff;border-color:var(--blue);box-shadow:0 0 16px rgba(95,184,255,.4)}
+#cam{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.stage{transition:transform .35s ease-out,filter .8s ease;will-change:transform}
+.stage.away{filter:brightness(.55) saturate(.7)}
+.seen{position:absolute;top:7%;left:9%;font-family:var(--display);font-size:9px;letter-spacing:.18em;color:#8ff0c8;text-shadow:0 0 8px #3ef0a0}
+.seen[hidden]{display:none}
