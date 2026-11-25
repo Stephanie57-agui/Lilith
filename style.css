@@ -28,7 +28,9 @@ body{background:radial-gradient(ellipse 90% 60% at 50% 22%,#1c0e5c 0%,#0b0636 45
 .stage img{object-fit:cover;transition:opacity 1s,filter .08s}
 #fx{mix-blend-mode:screen;transition:opacity 1s}
 #boot{transition:opacity 1s}
-.booting #art,.booting #fx{opacity:0}
+.booting #art,.booting #fx,.booting #live{opacity:0}
+#live{transition:opacity 1s,filter .08s}
+.alive #art{opacity:0}
 .hudtxt{position:absolute;top:7%;right:9%;font-family:var(--display);font-size:9px;letter-spacing:.18em;color:#8fd8ff;text-shadow:0 0 8px #3ab8ff;transition:opacity .8s}
 .caption{width:100%;max-width:560px;display:flex;align-items:center;gap:12px;background:var(--glass);border:1px solid rgba(95,184,255,.5);border-radius:14px;padding:12px 16px;font-size:16px;line-height:1.5;box-shadow:0 0 18px rgba(95,184,255,.18);min-height:52px}
 .bars{display:flex;gap:3px;align-items:center;height:20px;flex:0 0 auto}

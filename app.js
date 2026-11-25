@@ -107,7 +107,7 @@ $("go").onclick = async () => {
 
 /* ---------- visuals ---------- */
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const art = $("art"), stage = $("stage"), hud = $("hudtxt");
+const art = $("art"), stage = $("stage"), hud = $("hudtxt"), live = $("live");
 const cv = $("fx"), cx = cv.getContext("2d"), W = cv.width, H = cv.height, C = W / 2, HY = H * 0.255;
 const sparks = Array.from({ length: 110 }, () => ({ x: Math.random() * W, y: Math.random() * H, v: 0.3 + Math.random() * 1.1, r: 0.8 + Math.random() * 2.6, p: Math.random() * 6 }));
 const bars = [...document.querySelectorAll(".bars i")];
@@ -138,7 +138,7 @@ function frame(t) {
   kg.addColorStop(0, `rgba(240,180,255,${0.3 + amp * 0.6})`); kg.addColorStop(1, "rgba(160,80,255,0)");
   cx.fillStyle = kg; cx.beginPath(); cx.arc(C, H * 0.571, W * 0.05, 0, 6.283); cx.fill();
   for (const p of sparks) { if (gaze.on && gaze.present) p.x += gaze.x * 0.6; p.y -= p.v * (reduce ? 0.3 : 1) * (1 + amp * 3); if (p.y < 0) { p.y = H; p.x = Math.random() * W; } const a = 0.2 + 0.4 * Math.abs(Math.sin(t / 500 + p.p)); cx.fillStyle = `rgba(${200 + Math.round(40 * Math.sin(p.p))},170,255,${a})`; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.283); cx.fill(); }
-  art.style.filter = `brightness(${(1 + amp * 0.22).toFixed(3)}) saturate(${(1 + amp * 0.3).toFixed(3)})`;
+  art.style.filter = live.style.filter = `brightness(${(1 + amp * 0.22).toFixed(3)}) saturate(${(1 + amp * 0.3).toFixed(3)})`;
   if (gaze.on) {
     gaze.x += (gaze.tx - gaze.x) * 0.08; gaze.y += (gaze.ty - gaze.y) * 0.08;
     const lean = mode === "listening" && inVol > 0.05 ? 1.035 : 1;
@@ -245,3 +245,47 @@ function watch() {
 }
 eyeBtn.onclick = () => (gaze.on ? stopEyes() : startEyes());
 try { if (localStorage.getItem("lilith_eyes") === "1") startEyes(); } catch (e) {}
+
+/* ---------- living image: breathing, swaying hair, head drift, flowing light (free, runs on the GPU) ---------- */
+function startLiving() {
+  const gl = live.getContext("webgl", { premultipliedAlpha: false });
+  if (!gl || reduce) return;
+  const vs = "attribute vec2 a;varying vec2 uv;void main(){uv=vec2(a.x*.5+.5,.5-a.y*.5);gl_Position=vec4(a,0.,1.);}";
+  const fs = `precision mediump float;uniform sampler2D tex;uniform float t;uniform float amp;varying vec2 uv;
+  void main(){
+    vec2 p=uv;
+    float side=smoothstep(0.11,0.21,abs(p.x-0.5));
+    float band=smoothstep(0.09,0.17,p.y)*(1.0-smoothstep(0.56,0.70,p.y));
+    float hair=side*band;
+    p.x+=hair*(sin(t*0.9+p.y*9.0)*0.0045+sin(t*1.7+p.y*17.0)*0.002)*(0.4+p.y);
+    p.y+=hair*sin(t*1.1+p.x*12.0)*0.0015;
+    float head=(1.0-smoothstep(0.30,0.42,p.y))*(1.0-smoothstep(0.10,0.22,abs(p.x-0.5)));
+    p.x+=head*sin(t*0.37)*0.0022; p.y+=head*sin(t*0.29)*0.0012;
+    float chest=smoothstep(0.40,0.50,p.y)*(1.0-smoothstep(0.62,0.74,p.y));
+    float br=sin(t*1.15)*0.5+0.5;
+    p.x=0.5+(p.x-0.5)*(1.0-chest*br*0.007); p.y-=chest*br*0.0035;
+    vec4 c=texture2D(tex,p);
+    float s=fract(p.y*0.65+p.x*0.25-t*0.05);
+    float sheen=smoothstep(0.0,0.03,s)*(1.0-smoothstep(0.03,0.09,s));
+    float glow=c.r*0.3+c.g*0.2+c.b*0.5;
+    c.rgb+=vec3(0.6,0.4,1.0)*sheen*0.18*glow;
+    c.rgb*=1.0+0.035*sin(t*2.2+p.y*38.0+p.x*21.0)*glow+amp*0.12;
+    gl_FragColor=vec4(c.rgb,1.0);
+  }`;
+  const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+  try {
+    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pr); gl.useProgram(pr);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(pr, "a"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach((k) => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, art);
+    const uT = gl.getUniformLocation(pr, "t"), uA = gl.getUniformLocation(pr, "amp");
+    gl.viewport(0, 0, live.width, live.height);
+    stage.classList.add("alive");
+    const draw = (ms) => { gl.uniform1f(uT, ms / 1000); gl.uniform1f(uA, amp); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); requestAnimationFrame(draw); };
+    requestAnimationFrame(draw);
+  } catch (e) { console.error(e); stage.classList.remove("alive"); }
+}
+art.decode().then(startLiving).catch(() => { if (art.complete) startLiving(); });
